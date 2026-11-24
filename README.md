@@ -1,59 +1,73 @@
-# SAP Federal Account Planning Dashboard
+# Canadian federal SAP account planning
 
-An interactive dashboard for SAP industry account executives responsible for Canadian federal public-sector accounts. Built to support account planning across all SAP lines of business.
+An interactive dashboard across SAP finance/ERP, HR, procurement, travel/expense, supply chain, data/analytics, business technology/integration, customer/constituent experience, sustainability and business transformation. It includes SAP, relevant software vendors, and systems integrators/consultants including Deloitte, IBM, Accenture, CGI, KPMG, PwC and EY.
 
-## Features
+## Private publication
 
-### 1. Accounts View (Default)
-- Searchable list of government departments and agencies
-- Filter by SAP records, competitor records, upcoming end dates, or solution-area keywords
-- Click any account to view detailed supplier activity
-- Solution area research showing SAP vs competitor presence
+This repository and its release/build downloads are private. Download `dashboard.html` from **Releases**, or download the `private-federal-dashboard` artifact from **Actions → Private dashboard build**. Extract it and open `dashboard.html` in Chrome, Edge, Firefox or Safari. All application code, styles and snapshot data are embedded; a server is not needed.
 
-### 2. Renewal Signals
-- Focused view of tracked supplier contracts with recorded end dates
-- Filter by department, supplier group, solution area, and time window (90 days to 18 months)
-- Toggle between upcoming and past end dates
-- Amendment and option indicators
+This is a private downloadable application, not a privately hosted GitHub Pages website. GitHub Pages access restrictions are not provided by a personal private repository. No public Pages deployment is included. A private hosted site would require an authenticated hosting service or an eligible GitHub Enterprise organization.
 
-### 3. Market Overview
-- Tracked contract value by award year
-- Top departments by reported tracked contract value
-- Top tracked suppliers
-- Supplier group breakdown (SAP, Competitors, Systems Integrators)
+## What works
 
-## Data Source
+- **Accounts (default):** department/name/code search; SAP, competitor, upcoming-date and solution-keyword filters; account profiles; supplier expansion with five contract groups per page; original disclosure details and source links; separately paginated amendments; all solution areas with supporting evidence filters.
+- **Renewal signals:** department, supplier, supplier group, solution area (including Unknown), end-date window, and past/upcoming filters; reported totals, dates, descriptions, vehicles and indicators. Month windows are explicit day approximations.
+- **Market overview:** tracked supplier subset only; award-year and supplier-group filters; interactive year chart; top departments/suppliers and group breakdown.
+- **Government lookup:** department-specific SQL API queries with exact `owner_org`, date range and strict value threshold; maximum 100 records sorted by reported contract date; a separate count query; sample/complete-scope labels and five-record pages. API errors, HTML rejection pages and out-of-scope results are reported instead of displayed as data. Live results do not modify the snapshot.
+- **Snapshot import:** import a generated government snapshot JSON without rebuilding the app. The import is session-only and identifies the resource and coverage; it does not independently establish provenance of a supplied file.
 
-Uses the Government of Canada's **Proactive Publication — Contracts over $10,000** dataset via their open data API.
+## Government data and present limitations
 
-**Important disclaimers:**
-- Covers tracked suppliers only (SAP, competitors, systems integrators)
-- Contract values are reported disclosures, not confirmed spending
-- End dates are research signals, not confirmed renewals
-- Solution area identification is based on keyword matching
+Source: [Government of Canada — Proactive Publication, Contracts over $10,000](https://open.canada.ca/data/en/dataset/d8f85d91-7dec-4fd1-8055-483b77225d8b/resource/fac950c0-00d5-4ec1-a4d3-9cbebf98a305). Resource ID: `fac950c0-00d5-4ec1-a4d3-9cbebf98a305`.
 
-## Tracked Suppliers
+Scope: January 1 of the current Toronto calendar year minus five through the current Toronto date. On November 24, 2026 this is **January 1, 2021 – November 24, 2026**, with reported total contract value **strictly greater than CAD $10,000**. Invalid dates, out-of-range dates and values at or below the threshold are excluded.
 
-### SAP & Related
-SAP Canada, Concur, Ariba, SuccessFactors, Fieldglass, Qualtrics, Signavio
+During local verification on November 24, 2026, the government resource, metadata, API and search endpoints returned **Request Rejected** HTML pages, including HTTP 200 responses. No real records could be downloaded locally, and successful end-to-end government lookups and destination disclosure availability could not be verified. The initial repository snapshot therefore contains **zero real contracts** and shows Unknown activity, with a clearly labelled starter account directory. No example contracts are shipped. Check the current build's `government-snapshot.json` for the latest actual status, refresh date and collection error.
 
-### Competitors
-Oracle, Microsoft, Workday, Infor, Ceridian, Coupa, Salesforce, ServiceNow, Snowflake, and more
+The private GitHub build attempts a full government resource download from its runner. A successful download produces the real scoped supplier subset and dataset account directory in that build. A failure preserves any earlier real snapshot or the explicit unavailable state. The dashboard is a **snapshot, not an automatically refreshed website**: there is no scheduled job. Pushes and manual build runs can attempt collection; download a new artifact to use new data.
 
-### Systems Integrators
-Deloitte, IBM, Accenture, CGI, KPMG, PwC, EY, Capgemini, and more
+API requests run in the browser. Government availability, SQL support for this resource, CORS rules and the browser's treatment of local-file origins can prevent live lookups. No deployed API proxy or authenticated hosted site is provided. A complete scoped response is not the department's entire procurement history. Missing data never establishes confirmed whitespace.
 
-## Development
+## Data interpretation
 
-```bash
-npm install
-npm run dev
+Supplier aliases match whole words after case/punctuation/accent normalization. Solution keywords are drawn from disclosed descriptions and comments, **never inferred from supplier identity**. All area evidence needs verification. The supplier taxonomy is a research list, not a claim of partnership, product usage, ownership history or market share; IBM may provide both software and services, and Qualtrics is a separate tracked software vendor.
+
+Group records by exact department + normalized tracked supplier + exact procurement ID. If that ID is absent/NA, use the disclosure reference; without either identifier keep records separate. Do not group by vehicle number. Reused identifiers, aliases, consortia, resellers, missing disclosures and changed identifiers can cause false or missed grouping.
+
+Use the total in the most recent in-scope disclosure per group; do **not** add repeated amendment totals. Dates order the records, with reporting period and reference-number tie breaks; same-date ambiguity is flagged. The chart uses the earliest observed in-scope reported contract date, which may represent an amendment instead of the original award. The latest disclosure's end date is retained without filling gaps from earlier disclosures.
+
+The official end field is **Contract Period End Date or Delivery Date**. End dates, amendments, options and extension mentions are research signals, not confirmed renewals/re-competes or buying opportunities. Reported total values are **not confirmed spending**.
+
+Official schema: [contracts.yaml](https://github.com/open-data/ckanext-canada/blob/master/ckanext/canada/tables/contracts.yaml). Official search routes: [urls.py](https://github.com/open-data/oc_search/blob/master/oc_search/urls.py). Source links use `/contracts/record/{owner_org},{reference_number}`; destination availability remains unverified.
+
+## Refresh or import the actual government dataset
+
+Run the private **Actions → Private dashboard build → Run workflow** with the government download enabled. Alternatively:
+
+```sh
+npm ci
+python3 scripts/snapshot.py --download
+npm run build
 ```
 
-## Deployment
+For a government CSV already downloaded from the specified resource:
 
-The dashboard is automatically deployed to GitHub Pages when changes are pushed to main.
+```sh
+python3 scripts/snapshot.py --csv /path/to/contracts.csv
+npm run build
+```
 
-## License
+A local CSV is labelled partial by default. Add `--complete` only when it is the full unfiltered resource. The tool verifies required headers, applies scope and supplier filters, records full-file SHA-256, scanned/eligible/tracked row counts and refresh time, and refuses HTML/empty data. Import the generated `src/data/snapshot.json` with the dashboard's **Import snapshot** control, or open the rebuilt `dist/dashboard.html`.
 
-For internal SAP use only.
+## Development and verification
+
+```sh
+npm ci
+npm run dev
+npm run test:data
+npm test
+npm run build
+npm run test:build
+```
+
+Browser tests use Google Chrome and synthetic fixtures confined to `tests/`. They exercise account search, supplier expansion/pagination, grouping/value boundaries, evidence links, renewal and market filters, successful department-specific API responses, rejected/misdirected API responses, import validation and desktop layout. Data tests cover CSV scope/values, supplier boundaries and rejected downloads. Successful simulated API tests do not verify the real government's live service.
