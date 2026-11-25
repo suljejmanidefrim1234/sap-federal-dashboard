@@ -77,7 +77,7 @@ class RfpTests(unittest.TestCase):
     def test_verified_pdf_evidence_survives_denied_checks_only_if_metadata_is_unchanged(self):
         row = self.disclosure(procurement_id='RFP-2024-123456')
         snapshot = {'records':[row],'asOf':'2026-11-24','refreshedAt':'2026-11-24T12:00:00Z'}
-        columns = ['referenceNumber-numeroReference','solicitationNumber-numeroSollicitation','publicationDate-datePublication','title-titre-eng','contractingEntityName-nomEntitContractante-eng','tenderDescription-descriptionAppelOffres-eng','noticeURL-URLavis-eng']
+        columns = ['referenceNumber-numeroReference','solicitationNumber-numeroSollicitation','publicationDate-datePublication','title-titre-eng','contractingEntityName-nomEntitContractante-eng','tenderDescription-descriptionAppelOffres-eng','noticeURL-URLavis-eng','contractNumber-numeroContrat','contractAwardDate-dateAttributionContrat','supplierLegalName-nomLegalFournisseur-eng','totalContractValue-valeurTotaleContrat']
         with tempfile.TemporaryDirectory() as folder:
             directory = Path(folder)
             def write(description):
@@ -85,6 +85,8 @@ class RfpTests(unittest.TestCase):
                     with (directory / (source[0] + '.csv')).open('w', newline='') as file:
                         writer = csv.DictWriter(file, fieldnames=columns)
                         writer.writeheader()
+                        if source[0] == 'awards-current':
+                            writer.writerow({'referenceNumber-numeroReference':'cb-test-award','contractNumber-numeroContrat':'RFP-2024-123456','solicitationNumber-numeroSollicitation':'RFP-2024-123456','contractAwardDate-dateAttributionContrat':'2025-01-15','supplierLegalName-nomLegalFournisseur-eng':'SAP Canada Inc.','totalContractValue-valeurTotaleContrat':'25000','contractingEntityName-nomEntitContractante-eng':'Health Canada','title-titre-eng':'Software licences'})
                         if source[0] == 'tenders-current':
                             writer.writerow({'referenceNumber-numeroReference':'cb-test','solicitationNumber-numeroSollicitation':'RFP-2024-123456','publicationDate-datePublication':'2024-12-01','title-titre-eng':'Payroll implementation','contractingEntityName-nomEntitContractante-eng':'Health Canada','tenderDescription-descriptionAppelOffres-eng':description,'noticeURL-URLavis-eng':'https://canadabuys.canada.ca/en/tender-opportunities/tender-notice/cb-test'})
             write('See statement of work.')

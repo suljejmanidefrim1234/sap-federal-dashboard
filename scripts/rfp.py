@@ -279,8 +279,8 @@ def build(snapshot, directory, documents=False, page_limit=150, previous=None):
             key = identifier(award['contractNumber']) + '|' + identifier(award['solicitationNumber']) + '|' + award['family']
             key = key if identifier(award['contractNumber']) else key + '|' + identifier(award['reference'])
             link_id = hashlib.sha256(key.encode()).hexdigest()[:20]
-            previous = candidates.get(link_id)
-            if not previous or (award['sourceKind'] == 'Award' and previous['sourceKind'] != 'Award') or (award['sourceKind'] == previous['sourceKind'] and award['publishedDate'] > previous['publishedDate']):
+            old_candidate = candidates.get(link_id)
+            if not old_candidate or (award['sourceKind'] == 'Award' and old_candidate['sourceKind'] != 'Award') or (award['sourceKind'] == old_candidate['sourceKind'] and award['publishedDate'] > old_candidate['publishedDate']):
                 candidates[link_id] = award
             for i, relation in prospective:
                 edge = matching_edge(disclosures[i], award, relation)
