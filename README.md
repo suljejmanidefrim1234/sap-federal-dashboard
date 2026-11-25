@@ -2,11 +2,19 @@
 
 An interactive dashboard across SAP finance/ERP, HR, procurement, travel/expense, supply chain, data/analytics, business technology/integration, customer/constituent experience, sustainability and business transformation. It includes SAP, relevant software vendors, and systems integrators/consultants including Deloitte, IBM, Accenture, CGI, KPMG, PwC and EY.
 
-## Private publication
+## Run privately in your browser
 
-This repository and its release/build downloads are private. Download `dashboard.html` from **Releases**, or download the `private-federal-dashboard` artifact from **Actions → Private dashboard build**. Extract it and open `dashboard.html` in Chrome, Edge, Firefox or Safari. All application code, styles and snapshot data are embedded; a server is not needed.
+[Open this dashboard in GitHub Codespaces](https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=1470881373). Select **Create codespace** and wait for setup. The dashboard server starts automatically; open port **5173** from the **Ports** tab if a browser tab does not open. The app path is `/sap-federal-dashboard/`.
 
-This is a private downloadable application, not a privately hosted GitHub Pages website. GitHub Pages access restrictions are not provided by a personal private repository. No public Pages deployment is included. A private hosted site would require an authenticated hosting service or an eligible GitHub Enterprise organization.
+Codespaces forwarded ports default to **Private**, visible only to the signed-in Codespace owner. This setup does not make any port public. The repository remains private. See [GitHub documentation on forwarded-port privacy](https://docs.github.com/en/codespaces/developing-in-a-codespace/forwarding-ports-in-your-codespace#sharing-a-port).
+
+The dashboard runs while your Codespace is running and uses your Codespaces compute/storage allowance. Resume your existing Codespace from [your Codespaces list](https://github.com/codespaces) on later visits. This is a private browser workspace, not an always-on site.
+
+Private GitHub Pages requires a repository owned by an organization using GitHub Enterprise Cloud; this repository belongs to a personal account. See [GitHub private Pages requirements](https://docs.github.com/en/pages/getting-started-with-github-pages/changing-the-visibility-of-your-github-pages-site). No public Pages deployment is included.
+
+## Private download option
+
+The release/build downloads are also private. Download `dashboard.html` from **Releases**, or download the `private-federal-dashboard` artifact from **Actions → Private dashboard build**. Extract it and open `dashboard.html` in Chrome, Edge, Firefox or Safari. All application code, styles and snapshot data are embedded.
 
 ## What works
 
