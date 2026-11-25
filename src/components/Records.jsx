@@ -1,6 +1,7 @@
 import React, {useState} from 'react';
 import {formatCurrency,formatDate} from '../data/api';
 import {SUPPLIER_GROUPS} from '../data/suppliers';
+import RfpReferences from './RfpReferences';
 export function Badge({group,children}) {return <span className={'badge '+({SAP:'badge-sap',COMPETITORS:'badge-competitor',SYSTEMS_INTEGRATORS:'badge-si'}[group]||'badge-neutral')}>{children||SUPPLIER_GROUPS[group]?.name}</span>;}
 export function Pagination({page,setPage,count,size=5}) {
   const pages=Math.max(1,Math.ceil(count/size));
@@ -18,7 +19,7 @@ export function Disclosure({contract:c}) {return <article className="disclosure"
   </article>;}
 export function ContractCard({contract:c}) {
   const [page,setPage]=useState(0); const disclosures=c.disclosures||[c];
-  return <div className="contract-card" data-testid="contract-card"><div className="group-meta">{disclosures.length} disclosure{disclosures.length===1?'':'s'} · {c.groupingMethod||'Individual disclosure'} {c.ambiguousLatest&&<Badge>Same-date disclosures · verify order</Badge>}</div>
+  return <div className="contract-card" data-testid="contract-card"><div className="group-meta">{disclosures.length} disclosure{disclosures.length===1?'':'s'} · {c.groupingMethod||'Individual disclosure'} {c.ambiguousLatest&&<Badge>Same-date disclosures · verify order</Badge>}</div><RfpReferences matches={c.rfpMatches}/>
     {disclosures.slice(page*3,page*3+3).map(d=><Disclosure key={d.id} contract={d}/>)}
     {disclosures.length>1&&<><p className="small muted">Group total: {formatCurrency(c.contractValue,true)} from the most recent in-scope disclosure. Repeated total values are not added.</p><Pagination page={page} setPage={setPage} count={disclosures.length} size={3}/></>}
   </div>;
@@ -27,6 +28,8 @@ export function Methodology() {return <details className="methodology"><summary>
   <p><strong>Supplier records are research evidence.</strong> A supplier match does not establish installed products, current usage, an SAP partnership or a buying opportunity. Software vendors and consultants may supply unrelated products or services. Qualtrics is tracked as a separate software vendor; historical ownership is not reconstructed. IBM can supply both software and services.</p>
   <p><strong>Grouping:</strong> exact department + normalized tracked supplier + exact procurement ID, falling back to the disclosure reference; records without either remain separate. Shared vehicle numbers never merge contracts. Supplier aliases are matched as whole words. Consortia, resellers, spelling variants, reused IDs and changed identifiers can cause missed or incorrect grouping. No fuzzy matching is used.</p>
   <p><strong>Values and dates:</strong> use the total value in the most recent in-scope disclosure for each group, without adding amendment totals. Same-date ties use reporting period then reference number, and are flagged. The award-year chart uses the earliest observed in-scope contract date. An amendment date may be reported instead of the original award date. Groups may start before the scope, omit amendments, or contain missing end dates; no historical date or value is inferred.</p>
-  <p>The source field is <strong>Contract Period End Date or Delivery Date</strong>. End dates, amendments and option mentions are signals for research, not confirmed renewals or re-competes. Missing solution keywords mean <strong>Unknown</strong>, never confirmed whitespace. Keywords are extracted from disclosed descriptions and comments, not inferred from supplier names.</p>
+  <p>The source field is <strong>Contract Period End Date or Delivery Date</strong>. End dates, amendments and option mentions are signals for research, not confirmed renewals or re-competes. Missing solution evidence means <strong>Unknown</strong>, never confirmed whitespace.</p>
+  <p><strong>RFP enrichment:</strong> CanadaBuys current and historical award notices, contract history and tender notices are joined using full normalized contract/solicitation IDs, supplier family and department. Shared vehicles never populate solution areas. Date/value-only candidates contribute only explicit product names in award/history titles as tentative signals; other requirements from those candidates are not promoted. Exact procurement links still need review for reused identifiers, resellers and beneficiary departments.</p>
+  <p>Solution areas combine disclosed text with cited linked award/RFP text and available public PDF attachments. Product mentions are labelled by context: award title, requested scope, skills, existing environment, alternatives or options. SAP Ariba bid-registration instructions are excluded. RFP mentions do not establish which licence was selected or current product usage. Portal documents requiring login, missing archive pages and scanned PDFs may need manual review; PDF inspection is limited to two attachments and 40 pages each per inspected notice.</p>
   <p>Only records with valid reported contract dates in the displayed range and reported total value strictly greater than $10,000 enter the snapshot. The source represents disclosed contracts, not all procurement or confirmed spending. All values are CAD. Direct disclosure link formats are checked against the government’s published routes; destination availability still needs verification.</p>
   </div></details>;}

@@ -1,4 +1,5 @@
-import { classifyVendor, identifySolutionAreas, normalizeText } from './suppliers.js';
+import { classifyVendor, identifySolutionAreas, normalizeText, SOLUTION_AREAS } from './suppliers.js';
+import bundledRfp from './rfp-links.json';
 export const RESOURCE_ID = 'fac950c0-00d5-4ec1-a4d3-9cbebf98a305';
 export const SOURCE_URL = 'https://open.canada.ca/data/en/dataset/d8f85d91-7dec-4fd1-8055-483b77225d8b/resource/' + RESOURCE_ID;
 export const API_URL = 'https://open.canada.ca/data/api/3/action/datastore_search';
@@ -32,6 +33,23 @@ export function enrichContract(record) {
 }
 const identifier=value=>String(value||'').trim().toUpperCase();
 const usableID=value=>value && !['NA','N/A','NONE','UNKNOWN','0','-','NOT APPLICABLE'].includes(identifier(value));
+function mergeAreas(areas){
+  const map=new Map();
+  for(const area of areas){
+    const old=map.get(area.area);
+    const evidence=[...(old?.rfpEvidence||[]),...(area.rfpEvidence||[])];
+    map.set(area.area,{...old,...area,keywords:[...new Set([...(old?.keywords||[]),...(area.keywords||[])])],rfpEvidence:[...new Map(evidence.map(e=>[JSON.stringify([e.product,e.quote,e.url]),e])).values()]});
+  }
+  return [...map.values()];
+}
+export function withRfp(record,enrichment=bundledRfp){
+  const fingerprint=enrichment.inputFields?.[record.id];
+  const comparable=(key,value)=>key.endsWith('_value')?money(value):key==='contract_date'?validDate(value):key==='vendor_name'?normalizeText(value):key==='procurement_id'?identifier(value):String(value||'');
+  if(!fingerprint||Object.keys(fingerprint).some(key=>comparable(key,record[key])!==comparable(key,fingerprint[key])))return {...record,rfpMatches:[]};
+  const matches=(enrichment.disclosures?.[record.id]||[]).filter(edge=>enrichment.links?.[edge.linkId]).map(edge=>({...edge,link:enrichment.links[edge.linkId]}));
+  const inferred=matches.filter(m=>m.allowAreas&&!m.vehicleOnly).flatMap(m=>m.link.evidence.filter(e=>e.area&&!e.vehicleScope&&(m.rank!==1||(e.product&&['Award title','Contract history title'].includes(e.kind)))).map(e=>({area:e.area,name:SOLUTION_AREAS[e.area]?.name||e.area,keywords:[e.product||e.keyword||e.area],confidence:'Needs verification',rfpEvidence:[{...e,matchConfidence:m.confidence}]})));
+  return {...record,rfpMatches:matches,solutionAreas:mergeAreas([...record.solutionAreas,...inferred])};
+}
 // Keep exact procurement identifiers; never join contracts by shared vehicles.
 export function groupContracts(records) {
   const groups=new Map();
@@ -46,7 +64,7 @@ export function groupContracts(records) {
     const latest=unique[0],firstDate=[...unique].sort((a,b)=>a.contractDate.localeCompare(b.contractDate))[0].contractDate;
     return {...latest,id,disclosures:unique,groupingMethod:JSON.parse(id)[2],contractDate:firstDate,awardYear:Number(firstDate.slice(0,4)),latestDisclosureDate:latest.contractDate,
       isAmendment:unique.some(d=>d.isAmendment),hasOptionMention:unique.some(d=>d.hasOptionMention),newInRefresh:unique.some(d=>d.newInRefresh),
-      solutionAreas:[...new Map(unique.flatMap(d=>d.solutionAreas).map(a=>[a.area,a])).values()],
+      solutionAreas:mergeAreas(unique.flatMap(d=>d.solutionAreas)),rfpMatches:[...new Map(unique.flatMap(d=>d.rfpMatches||[]).map(m=>[m.linkId,m])).values()],
       ambiguousLatest:unique.length>1&&unique[0].contractDate===unique[1].contractDate,
       vehicles:[...new Set(unique.map(d=>d.standing_offer_number).filter(Boolean))]};
   });
@@ -116,14 +134,14 @@ export async function fetchContracts({department,limit=100,scanLimit=500},fetche
   const total=Number(data.result.total);
   if(!Number.isInteger(total)||total<raw.length)throw new Error('The government department result count could not be verified.');
   const eligible=raw.filter(r=>inScope(r));
-  return {records:eligible.slice(0,safeLimit).map(enrichContract),total,scanned:raw.length,eligibleInSample:eligible.length,complete:raw.length===total&&eligible.length<=safeLimit,refreshedAt:new Date().toISOString()};
+  return {records:eligible.slice(0,safeLimit).map(enrichContract).map(c=>withRfp(c)),total,scanned:raw.length,eligibleInSample:eligible.length,complete:raw.length===total&&eligible.length<=safeLimit,refreshedAt:new Date().toISOString()};
 }
-export function prepareSnapshot(snapshot){
+export function prepareSnapshot(snapshot,enrichment=bundledRfp){
   if(snapshot?.resourceId!==RESOURCE_ID||!Array.isArray(snapshot.records)||!Array.isArray(snapshot.departments))throw new Error('This is not a snapshot of the specified government resource.');
   if(!['ready','unavailable'].includes(snapshot.status))throw new Error('Snapshot status is invalid.');
   if(snapshot.status==='ready'&&(!validDate(snapshot.asOf)||!snapshot.refreshedAt))throw new Error('Snapshot coverage and refresh date are required.');
   if(snapshot.departments.some(d=>!d||typeof d.code!=='string'||!d.code||typeof d.name!=='string'))throw new Error('Snapshot department directory is invalid.');
   const asOf=snapshot.asOf&&snapshot.asOf<today()?snapshot.asOf:today();
   const newReferences=new Set(snapshot.changes?.newReferences||[]);
-  return {snapshot,contracts:groupContracts(snapshot.records.filter(r=>r&&r.owner_org&&inScope(r)&&validDate(r.contract_date)<=asOf).map(enrichContract).map(c=>({...c,newInRefresh:newReferences.has(c.id)})).filter(c=>c.supplierGroup)),directory:snapshot.departments};
+  return {snapshot,contracts:groupContracts(snapshot.records.filter(r=>r&&r.owner_org&&inScope(r)&&validDate(r.contract_date)<=asOf).map(enrichContract).map(c=>withRfp(c,enrichment)).map(c=>({...c,newInRefresh:newReferences.has(c.id)})).filter(c=>c.supplierGroup)),directory:snapshot.departments};
 }

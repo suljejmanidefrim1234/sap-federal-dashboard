@@ -8,9 +8,10 @@
     "build": "vite build && node scripts/standalone.mjs",
     "preview": "vite preview",
     "test": "playwright test",
-    "test:data": "python3 -m unittest discover -s tests -p test_snapshot.py",
+    "test:data": "python3 -m unittest discover -s tests -p test_*.py",
     "refresh": "python3 scripts/snapshot.py --download",
-    "test:build": "node scripts/check-build.mjs"
+    "test:build": "node scripts/check-build.mjs",
+    "refresh:rfp": "python3 scripts/rfp.py --download --documents"
   },
   "dependencies": {
     "react": "^18.2.0",

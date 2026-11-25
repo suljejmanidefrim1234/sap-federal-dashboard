@@ -1,5 +1,5 @@
 import {test,expect} from '@playwright/test';
-import {fixture,row} from './fixtures.js';
+import {fixture,row,rfpFixture} from './fixtures.js';
 test.beforeEach(async({page})=>{await page.clock.install({time:new Date('2026-11-24T17:00:00-05:00')});await page.addInitScript(snapshot=>window.__DASHBOARD_SNAPSHOT__=snapshot,fixture());});
 async function openHealth(page){await page.goto('./');await page.getByRole('button',{name:/^Health Canada/}).click();}
 test('account search, code search, no-match and supplier filters',async({page})=>{
@@ -45,4 +45,25 @@ test('new-disclosure filters reveal supporting amendment records from the latest
   const supplier=page.locator('.supplier-item');await expect(supplier).toHaveCount(1);await supplier.getByRole('button').first().click();
   await expect(supplier.locator('[data-testid="contract-card"]')).toHaveCount(1);await expect(supplier.getByRole('link',{name:'TEST-AMENDMENT ↗'})).toBeVisible();
   await expect(supplier.locator('.badge').filter({hasText:'New in latest refresh'})).toHaveCount(1);
+});
+
+test('linked RFP evidence populates department solution fields and opens the RFP link',async({page})=>{
+  const data=fixture();const rfp=rfpFixture(data);await page.addInitScript(value=>window.__DASHBOARD_RFP__=value,rfp);await page.goto('./');
+  await page.getByRole('textbox',{name:'Search departments and agencies'}).fill('Treasury');await page.getByRole('button',{name:/^Treasury Board/}).click();
+  const hr=page.locator('.solution-item').filter({hasText:'HR & people'});await expect(hr).toBeEnabled();await expect(hr).toContainText('SAP SuccessFactors');await expect(hr).toContainText('Needs verification');await expect(hr).toContainText('Integrator');await hr.click();
+  const supplier=page.locator('.supplier-item');await expect(supplier).toHaveCount(1);await supplier.getByRole('button').first().click();
+  await supplier.locator('summary').filter({hasText:'Related tender / RFP evidence'}).click();
+  await expect(supplier.getByRole('link',{name:/Request for Proposal · TEST-RFP-PAYROLL/})).toHaveAttribute('href','https://canadabuys.canada.ca/en/tender-opportunities/tender-notice/test-payroll-rfp');
+  await expect(supplier.getByText('Contract ID + supplier + department',{exact:true})).toBeVisible();
+  await supplier.locator('summary').filter({hasText:'Product and solution evidence'}).click();await expect(supplier.locator('.rfp-evidence strong')).toHaveText('SAP SuccessFactors');await expect(supplier.locator('blockquote')).toContainText('implement SAP SuccessFactors payroll');
+});
+test('stale fingerprints, vehicles and weak RFP-only candidates cannot populate solution fields',async({page})=>{
+  await page.goto('./');const outcome=await page.evaluate(async({snapshot,rfp})=>{
+    const m=await import('/sap-federal-dashboard/src/data/model.js');const id='tbs-sct:TEST-DELOITTE';const hasHR=data=>m.prepareSnapshot(snapshot,data).contracts.find(c=>c.reference_number==='TEST-DELOITTE').solutionAreas.some(a=>a.area==='HCM');
+    const good=hasHR(rfp);const numeric=structuredClone(rfp);numeric.inputFields[id].contract_value='100000.00';const numericResult=hasHR(numeric);const stale=structuredClone(rfp);stale.inputFields[id].vendor_name='Other supplier';const staleResult=hasHR(stale);
+    const vehicle=structuredClone(rfp);vehicle.disclosures[id][0].vehicleOnly=true;const vehicleResult=hasHR(vehicle);
+    const weak=structuredClone(rfp);weak.disclosures[id][0].rank=1;weak.disclosures[id][0].confidence='Possible match: supplier + department + date + value';const weakResult=hasHR(weak);
+    weak.links['test-rfp'].evidence[0].kind='Award title';const titleResult=hasHR(weak);
+    const scope=structuredClone(rfp);scope.links['test-rfp'].evidence[0].vehicleScope=true;const scopeResult=hasHR(scope);return{good,numericResult,staleResult,vehicleResult,weakResult,titleResult,scopeResult};
+  },{snapshot:fixture(),rfp:rfpFixture()});expect(outcome).toEqual({good:true,numericResult:true,staleResult:false,vehicleResult:false,weakResult:false,titleResult:true,scopeResult:false});
 });

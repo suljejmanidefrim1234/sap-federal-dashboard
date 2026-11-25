@@ -28,10 +28,15 @@ jobs:
         with:
           python-version: '3.14'
       - run: npm ci
+      - run: python3 -m pip install -r requirements.txt
       - name: Refresh complete government source and compare disclosures
         id: refresh
         continue-on-error: true
         run: python3 scripts/snapshot.py --download
+      - name: Refresh historical awards and RFP product evidence
+        id: rfp
+        continue-on-error: true
+        run: python3 scripts/rfp.py --download --documents --page-limit 150
       - name: Probe department API and disclosure link
         run: python3 scripts/verify-government.py
       - name: Verify data scope and refresh comparisons
@@ -46,11 +51,12 @@ jobs:
         run: |
           cp src/data/snapshot.json dist/government-snapshot.json
           cp government-verification.json dist/government-verification.json
+          cp src/data/rfp-links.json dist/rfp-links.json
       - name: Persist the latest snapshot and refresh status
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/data/snapshot.json government-verification.json
+          git add src/data/snapshot.json src/data/rfp-links.json government-verification.json
           if ! git diff --cached --quiet; then
             git commit -m 'Refresh government contract disclosures [skip ci]'
             git push origin HEAD:main

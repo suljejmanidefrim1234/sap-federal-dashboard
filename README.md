@@ -67,6 +67,27 @@ npm run build
 
 A local CSV is labelled partial by default. Add `--complete` only when it is the full unfiltered resource. The tool verifies required headers, applies scope and supplier filters, records full-file SHA-256, scanned/eligible/tracked row counts and refresh time, and refuses HTML/empty data. Import the generated `src/data/snapshot.json` with the dashboard's **Import snapshot** control, or open the rebuilt `dist/dashboard.html`.
 
+## RFP cross-references and solution-area evidence
+
+Every weekly build also scans current and historical [CanadaBuys award notices](https://open.canada.ca/data/en/dataset/a1acb126-9ce8-40a9-b889-5da2b1dd20cb), [contract history](https://open.canada.ca/data/en/dataset/4fe645a1-ffcd-40c1-9385-2c771be956a4) and [tender notices](https://open.canada.ca/data/en/dataset/6abd20d4-7a1c-4b38-baa2-9525d0bb2fd2). The historical files cover tenders before the contract-window start, including the 2009–2022 legacy tender archive.
+
+The enrichment prefers complete normalized contract/solicitation IDs plus supplier family and department. A disclosure carrying a matching solicitation ID can also link directly to a tender when an award notice is not found. Procurement by PSPC on behalf of another department is flagged when the beneficiary does not align. Identifier reuse, missing records, resellers and joint ventures can leave links uncertain or absent.
+
+Supplier/department/date/value-only candidates remain **Possible matches**. Only explicit product names in their award/history titles contribute tentative area signals. Shared vehicles, and RFPs describing supply-arrangement or standing-offer coverage, never populate individual-purchase solution areas. Contract values are not added across sources.
+
+Within an account, solution-area cards show named products where available. Click an area, expand a supplier, then open **Related tender / RFP evidence**. Each matched notice has a direct RFP/tender link; award/history links, match confidence, identifiers, purchase context and short source quotations are provided. Quote links identify the source and PDF page where applicable.
+
+All derived areas remain **Needs verification**. Evidence distinguishes award/history titles from RFP scope, skills qualifications, existing environments, acceptable alternatives and options. A requested product does not identify the winning licence line item or establish installed usage. SAP Ariba bid-registration instructions are excluded, and office software outside the SAP-area taxonomy is not forced into an SAP solution category.
+
+CSV files are scanned in full. Each run inspects at most 150 relevant notice pages, two public PDF attachments per inspected notice, and the first 40 pages per PDF; no OCR is performed. Missing, scanned, oversized, login-protected or external-platform attachments may need manual review. Notice availability checks are shown next to links. Legacy PW-__ URL aliases are converted to the working CanadaBuys form.
+
+The separate RFP enrichment refresh date and any failure appear on the dashboard. Earlier enrichment survives a failed refresh, but links are only attached when the disclosed vendor/ID/date/value fingerprint still agrees. This prevents stale matching evidence from being applied to a corrected disclosure.
+
+```sh
+python3 -m pip install -r requirements.txt
+npm run refresh:rfp
+```
+
 ## Development and verification
 
 ```sh
