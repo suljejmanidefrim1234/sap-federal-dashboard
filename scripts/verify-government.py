@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from urllib.parse import urlencode, quote
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parents[1]
 snapshot = json.loads((ROOT / 'src/data/snapshot.json').read_text())
@@ -40,6 +41,18 @@ if source:
         report['apiVerified'] = True
     except Exception as error:
         report['errors'].append('Live API: ' + str(error))
+        if isinstance(error, HTTPError):
+            report['apiErrorBody'] = error.read(4000).decode('utf-8', errors='replace')
+        try:
+            fallback_url = 'https://open.canada.ca/data/api/3/action/datastore_search?' + urlencode({'resource_id': resource_id, 'filters': json.dumps({'owner_org': org}), 'limit': 1, 'sort': 'contract_date desc'})
+            with urlopen(Request(fallback_url, headers={'Accept': 'application/json'}), timeout=45) as response:
+                fallback = json.load(response)
+                report['datastoreCORS'] = response.headers.get('Access-Control-Allow-Origin', 'Not provided')
+            report['datastoreProbe'] = {'success': fallback.get('success'), 'total': fallback.get('result', {}).get('total'), 'fields': [f.get('id') for f in fallback.get('result', {}).get('fields', [])], 'error': fallback.get('error'), 'returnedDepartment': (fallback.get('result', {}).get('records') or [{}])[0].get('owner_org')}
+        except Exception as fallback_error:
+            report['datastoreProbe'] = {'error': str(fallback_error)}
+            if isinstance(fallback_error, HTTPError):
+                report['datastoreProbe']['body'] = fallback_error.read(4000).decode('utf-8', errors='replace')
     try:
         url = 'https://search.open.canada.ca/contracts/record/' + quote(org, safe='') + ',' + quote(source['reference_number'], safe='')
         with urlopen(Request(url, headers={'User-Agent': 'FederalAccountResearch/1.0'}), timeout=45) as response:
