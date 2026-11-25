@@ -45,14 +45,14 @@ export function groupContracts(records) {
     const unique=[...new Map(disclosures.map(d=>[d.id,d])).values()].sort((a,b)=>(b.contractDate||'').localeCompare(a.contractDate||'')||String(b.reporting_period||'').localeCompare(String(a.reporting_period||''))||String(b.reference_number||'').localeCompare(String(a.reference_number||'')));
     const latest=unique[0],firstDate=[...unique].sort((a,b)=>a.contractDate.localeCompare(b.contractDate))[0].contractDate;
     return {...latest,id,disclosures:unique,groupingMethod:JSON.parse(id)[2],contractDate:firstDate,awardYear:Number(firstDate.slice(0,4)),latestDisclosureDate:latest.contractDate,
-      isAmendment:unique.some(d=>d.isAmendment),hasOptionMention:unique.some(d=>d.hasOptionMention),
+      isAmendment:unique.some(d=>d.isAmendment),hasOptionMention:unique.some(d=>d.hasOptionMention),newInRefresh:unique.some(d=>d.newInRefresh),
       solutionAreas:[...new Map(unique.flatMap(d=>d.solutionAreas).map(a=>[a.area,a])).values()],
       ambiguousLatest:unique.length>1&&unique[0].contractDate===unique[1].contractDate,
       vehicles:[...new Set(unique.map(d=>d.standing_offer_number).filter(Boolean))]};
   });
 }
 export function aggregateByDepartment(contracts,directory=[]) {
-  const empty=d=>({...d,contracts:[],sapContracts:[],competitorContracts:[],siContracts:[],totalValue:0,nextEndDate:null,solutionAreas:[]});
+  const empty=d=>({...d,contracts:[],sapContracts:[],competitorContracts:[],siContracts:[],newContracts:[],totalValue:0,nextEndDate:null,solutionAreas:[]});
   const map=new Map(directory.map(d=>[d.code,empty(d)]));
   for(const c of contracts) {
     if(!map.has(c.owner_org))map.set(c.owner_org,empty({code:c.owner_org,name:c.departmentName}));
@@ -60,6 +60,7 @@ export function aggregateByDepartment(contracts,directory=[]) {
     if(c.supplierGroup==='SAP')d.sapContracts.push(c);
     if(c.supplierGroup==='COMPETITORS')d.competitorContracts.push(c);
     if(c.supplierGroup==='SYSTEMS_INTEGRATORS')d.siContracts.push(c);
+    if(c.newInRefresh)d.newContracts.push(c);
     d.solutionAreas=[...new Set([...d.solutionAreas,...c.solutionAreas.map(a=>a.area)])];
     if(c.endDate&&c.endDate>=today()&&(!d.nextEndDate||c.endDate<d.nextEndDate))d.nextEndDate=c.endDate;
   }
@@ -123,5 +124,6 @@ export function prepareSnapshot(snapshot){
   if(snapshot.status==='ready'&&(!validDate(snapshot.asOf)||!snapshot.refreshedAt))throw new Error('Snapshot coverage and refresh date are required.');
   if(snapshot.departments.some(d=>!d||typeof d.code!=='string'||!d.code||typeof d.name!=='string'))throw new Error('Snapshot department directory is invalid.');
   const asOf=snapshot.asOf&&snapshot.asOf<today()?snapshot.asOf:today();
-  return {snapshot,contracts:groupContracts(snapshot.records.filter(r=>r&&r.owner_org&&inScope(r)&&validDate(r.contract_date)<=asOf).map(enrichContract).filter(c=>c.supplierGroup)),directory:snapshot.departments};
+  const newReferences=new Set(snapshot.changes?.newReferences||[]);
+  return {snapshot,contracts:groupContracts(snapshot.records.filter(r=>r&&r.owner_org&&inScope(r)&&validDate(r.contract_date)<=asOf).map(enrichContract).map(c=>({...c,newInRefresh:newReferences.has(c.id)})).filter(c=>c.supplierGroup)),directory:snapshot.departments};
 }

@@ -2,11 +2,17 @@
 
 An interactive dashboard across SAP finance/ERP, HR, procurement, travel/expense, supply chain, data/analytics, business technology/integration, customer/constituent experience, sustainability and business transformation. It includes SAP, relevant software vendors, and systems integrators/consultants including Deloitte, IBM, Accenture, CGI, KPMG, PwC and EY.
 
-## Private publication
+## Public website and automatic weekly updates
 
-This repository and its release/build downloads are private. Download `dashboard.html` from **Releases**, or download the `private-federal-dashboard` artifact from **Actions → Private dashboard build**. Extract it and open `dashboard.html` in Chrome, Edge, Firefox or Safari. All application code, styles and snapshot data are embedded; a server is not needed.
+[Open the hosted dashboard](https://suljejmanidefrim1234.github.io/sap-federal-dashboard/). No HTML download or GitHub login is needed.
 
-This is a private downloadable application, not a privately hosted GitHub Pages website. GitHub Pages access restrictions are not provided by a personal private repository. No public Pages deployment is included. A private hosted site would require an authenticated hosting service or an eligible GitHub Enterprise organization.
+GitHub Actions downloads the complete specified government resource and republishes the dashboard **every Monday at 14:00 UTC** (9 a.m. Toronto time in winter, 10 a.m. in summer). Pushes to main and manual workflow runs also refresh it. Reload the website to see the latest deployed snapshot.
+
+The snapshot and refresh status are committed after successful validation so later runs compare against the latest data. **Newly observed disclosures** match department + disclosure reference against the previous successful snapshot. They may be delayed publications or amendments, not newly signed contracts. Changes to existing references are counted separately and may represent corrections. Use **Accounts with new disclosures**, then **New in latest refresh** within an account, to see supporting records.
+
+The Accounts, Renewal signals and Market overview pages retain the SAP/competitor/integrator supplier subset. The weekly job reads the full government file but the dashboard is not a complete all-supplier federal procurement feed. Department-specific government lookups include all suppliers in their retrieved sample.
+
+If source collection fails, the site keeps the last good data and shows the failed refresh attempt and last successful refresh. Government disclosure timing may lag signing. The weekly schedule has been configured; it depends on GitHub Actions and government source availability.
 
 ## What works
 
@@ -24,7 +30,7 @@ Scope: January 1 of the current Toronto calendar year minus five through the cur
 
 During local verification on November 24, 2026, the government resource, metadata, API and search endpoints returned **Request Rejected** HTML pages, including HTTP 200 responses. However, **GitHub's runner successfully downloaded the full resource**. The bundled real snapshot scanned **1,336,149 CSV rows**, found **481,211 date/value-eligible disclosures**, retained **8,607 tracked-supplier disclosures**, and contains **94 departments/agencies**. It was refreshed on **November 24, 2026 at 9:25 p.m. Eastern**. Source file SHA-256: `ea600874e45e7d642a6330c12364740ee7a73ae5556376d830767227503e7719`. Complete means complete against the downloaded resource and the specified tracked matching rules, not complete department procurement or supplier coverage. No example contracts are shipped. Check `government-snapshot.json` for exact coverage and `government-verification.json` for actual API/source-link probes. Local browser access remains unverified.
 
-The private GitHub build attempts a full government resource download from its runner. A successful download produces the real scoped supplier subset and dataset account directory in that build. A failure preserves any earlier real snapshot or the explicit unavailable state. The dashboard is a **snapshot, not an automatically refreshed website**: there is no scheduled job. Pushes and manual build runs can attempt collection; download a new artifact to use new data.
+The public GitHub Pages workflow refreshes the complete source weekly, compares disclosures against the last committed snapshot, validates the result, persists the latest snapshot and deploys it. A failed source download preserves the last good data and publishes an explicit stale-data warning. A source download alone does not guarantee the government has published every recently signed contract.
 
 API requests run in the browser. The government exposes `datastore_search` but does not expose `datastore_search_sql`. Department filtering occurs in the API; date/value filtering occurs after retrieval and never converts a sample into a full history. Browser requests use JSON with a public CKAN JSONP fallback when CORS headers are absent. Government availability, network restrictions and browser policy can still prevent live lookups. No deployed API proxy or authenticated hosted site is provided. A complete scoped response is not the department procurement history. Missing data never establishes confirmed whitespace.
 
@@ -44,7 +50,7 @@ Official schema: [contracts.yaml](https://github.com/open-data/ckanext-canada/bl
 
 ## Refresh or import the actual government dataset
 
-Run the private **Actions → Private dashboard build → Run workflow** with the government download enabled. Alternatively:
+Use **Actions → Weekly government contracts and Pages deployment → Run workflow** for an immediate source refresh and deployment. The same workflow runs every Monday at 14:00 UTC. Alternatively:
 
 ```sh
 npm ci

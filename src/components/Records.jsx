@@ -10,7 +10,7 @@ export function Pagination({page,setPage,count,size=5}) {
 export function Indicators({contract:c}) {return <div className="indicators">{c.isAmendment&&<Badge>Amendment indicator</Badge>}{c.hasOptionMention&&<Badge>Option / extension mention</Badge>}{c.instrument_type==='SOSA'&&<Badge>Standing offer / supply arrangement</Badge>}{c.ambiguousLatest&&<Badge>Same-date disclosures · verify order</Badge>}</div>;}
 export function Disclosure({contract:c}) {return <article className="disclosure">
   <div className="contract-header"><a className="contract-link" href={c.sourceUrl} target="_blank" rel="noopener noreferrer">{c.reference_number||'Government dataset'} ↗</a><strong title="Reported total contract value, CAD">{formatCurrency(c.contractValue,true)}</strong></div>
-  <p>{c.description}</p><Indicators contract={c}/>
+  <p>{c.description}</p>{c.newInRefresh&&<Badge>New in latest refresh</Badge>}<Indicators contract={c}/>
   <dl className="contract-meta"><div><dt>Contract / award date</dt><dd>{formatDate(c.contractDate)}</dd></div><div><dt>Recorded end / delivery</dt><dd>{formatDate(c.endDate)}</dd></div><div><dt>Procurement ID</dt><dd>{c.procurement_id||'Not reported'}</dd></div><div><dt>Vehicle number</dt><dd>{c.standing_offer_number||'Not reported'}</dd></div></dl>
   <div className="small muted">Reported supplier: {c.vendor_name} · {c.instrument_type==='A'?'Amendment instrument':c.instrument_type==='SOSA'?'Standing offer / supply arrangement':c.instrument_type||'Instrument not reported'}{c.amendmentValue!==0&&' · Amendment value '+formatCurrency(c.amendmentValue,true)}</div>
   {c.comments&&<details className="comments"><summary>Disclosed comments</summary><p>{c.comments}</p></details>}

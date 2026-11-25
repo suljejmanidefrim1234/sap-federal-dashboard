@@ -35,7 +35,7 @@ def reported_value(value):
     except InvalidOperation:
         return Decimal(0)
 
-def build_snapshot(path, as_of, complete=False):
+def build_snapshot(path, as_of, complete=False, previous=None):
     end = date.fromisoformat(as_of)
     start = date(end.year - 5, 1, 1)
     records, departments = [], {}
@@ -65,12 +65,17 @@ def build_snapshot(path, as_of, complete=False):
         raise ValueError('Government CSV was empty. Refusing to report a complete snapshot.')
     with open(path, 'rb') as source:
         digest = hashlib.file_digest(source, 'sha256').hexdigest()
+    prior = {r['owner_org'] + ':' + r['reference_number']: r for r in (previous or {}).get('records', []) if r.get('reference_number')}
+    comparison_available = (previous or {}).get('status') == 'ready'
+    new_references = [r['owner_org'] + ':' + r['reference_number'] for r in records if comparison_available and r.get('reference_number') and r['owner_org'] + ':' + r['reference_number'] not in prior]
+    changed = sum(1 for r in records if r['owner_org'] + ':' + r['reference_number'] in prior and r != prior[r['owner_org'] + ':' + r['reference_number']])
     return {'resourceId': RESOURCE_ID, 'sourceUrl': SOURCE_URL, 'status': 'ready', 'asOf': as_of,
             'startDate': start.isoformat(), 'refreshedAt': datetime.now(timezone.utc).isoformat(),
             'complete': complete, 'directoryComplete': complete, 'scannedRows': scanned,
             'eligibleRows': eligible, 'invalidDateRows': invalid_dates,
             'trackedDisclosureRows': len(records), 'sourceSHA256': digest,
             'departments': sorted(departments.values(), key=lambda d: d['name']), 'records': records,
+            'changes': {'comparisonAvailable': comparison_available, 'previousRefreshedAt': (previous or {}).get('refreshedAt'), 'newReferences': new_references, 'newDisclosureCount': len(new_references), 'changedDisclosureCount': changed},
             'message': 'Snapshot of the tracked supplier subset. Not confirmed spending or product usage.'}
 
 def government_download(destination):
@@ -104,13 +109,14 @@ def main():
     parser.add_argument('--as-of', default=datetime.now(ZoneInfo('America/Toronto')).date().isoformat())
     parser.add_argument('--output', type=Path, default=ROOT / 'src/data/snapshot.json')
     args = parser.parse_args()
+    previous = json.loads(args.output.read_text()) if args.output.exists() else None
     try:
         download_url = None
         with tempfile.TemporaryDirectory(prefix='federal-contracts-') as temp:
             path = args.csv or Path(temp) / 'contracts.csv'
             if args.download:
                 download_url = government_download(path)
-            snapshot = build_snapshot(path, args.as_of, args.download or args.complete)
+            snapshot = build_snapshot(path, args.as_of, args.download or args.complete, previous)
         if download_url:
             snapshot['downloadUrl'] = download_url
         args.output.parent.mkdir(parents=True, exist_ok=True)

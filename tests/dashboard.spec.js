@@ -34,3 +34,15 @@ test('grouping never uses shared vehicle numbers and dates/value scope is enforc
   await page.goto('./');const result=await page.evaluate(async()=>{const m=await import('/sap-federal-dashboard/src/data/model.js');const s=await import('/sap-federal-dashboard/src/data/suppliers.js');const raw=window.__DASHBOARD_SNAPSHOT__.records;const prepared=m.prepareSnapshot(window.__DASHBOARD_SNAPSHOT__);return {count:prepared.contracts.length,total:prepared.contracts.filter(c=>c.supplierGroup==='SAP').reduce((sum,c)=>sum+c.contractValue,0),unknown:s.identifySolutionAreas('Generic software subscription').length,falseMatch:s.classifyVendor('Saputo Dairy')?.group,qualified:m.inScope(raw[0],'2026-11-24'),date:m.validDate('2026-02-30'),supplier:s.classifyVendor('Ernst & Young LLP')?.name};});expect(result.count).toBe(10);expect(result.total).toBe(750000);expect(result.unknown).toBe(0);expect(result.falseMatch).toBeUndefined();expect(result.qualified).toBe(true);expect(result.date).toBeNull();expect(result.supplier).toBe('EY');
 });
 test('desktop layout has no horizontal overflow or browser errors',async({page})=>{const errors=[];page.on('pageerror',e=>errors.push(e.message));await openHealth(page);await expect(page.getByRole('heading',{name:'Reported supplier activity'})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await page.screenshot({path:'test-results/account-profile.png',fullPage:true});expect(errors).toEqual([]);});
+
+test('new-disclosure filters reveal supporting amendment records from the latest refresh',async({page})=>{
+  const snapshot=fixture();snapshot.changes={comparisonAvailable:true,newDisclosureCount:1,changedDisclosureCount:0,newReferences:['hc-sc:TEST-AMENDMENT'],previousRefreshedAt:'2026-11-23T12:00:00Z'};
+  await page.addInitScript(s=>window.__DASHBOARD_SNAPSHOT__=s,snapshot);await page.goto('./');
+  await expect(page.getByText('1 newly observed tracked disclosures · 0 changed disclosures')).toBeVisible();
+  await page.getByRole('button',{name:'Accounts with new disclosures'}).click();
+  await expect(page.getByRole('button',{name:/^Health Canada/})).toBeVisible();await expect(page.getByRole('button',{name:/^Treasury Board/})).toHaveCount(0);
+  await page.getByRole('button',{name:/^Health Canada/}).click();await page.getByRole('button',{name:'New in latest refresh',exact:true}).click();
+  const supplier=page.locator('.supplier-item');await expect(supplier).toHaveCount(1);await supplier.getByRole('button').first().click();
+  await expect(supplier.locator('[data-testid="contract-card"]')).toHaveCount(1);await expect(supplier.getByRole('link',{name:'TEST-AMENDMENT ↗'})).toBeVisible();
+  await expect(supplier.locator('.badge').filter({hasText:'New in latest refresh'})).toHaveCount(1);
+});
