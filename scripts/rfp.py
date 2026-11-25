@@ -360,10 +360,14 @@ def build(snapshot, directory, documents=False, page_limit=150, previous=None):
     for link in (previous or {}).get('links', {}).values():
         for tender in link.get('tenders', []):
             prior_tenders[tender['url']] = tender
+            if tender.get('portalUrl'):
+                prior_tenders[tender['portalUrl']] = tender
             urls = {d['url'] for d in tender.get('documents', [])}
             for evidence in link.get('evidence', []):
                 if evidence['kind'] == 'RFP attachment' and evidence['url'].split('#')[0] in urls:
                     prior_pdf_evidence.setdefault(tender['url'], []).append(evidence)
+                    if tender.get('portalUrl'):
+                        prior_pdf_evidence.setdefault(tender['portalUrl'], []).append(evidence)
     if documents and unique_tenders:
         selected = sorted(unique_tenders.values(), key=lambda t: (bool(extract_evidence(t['title'] + ' ' + t['description'], 'RFP title', t['url'])), t['publishedDate']), reverse=True)[:page_limit]
         with ThreadPoolExecutor(max_workers=4) as pool:
@@ -378,7 +382,7 @@ def build(snapshot, directory, documents=False, page_limit=150, previous=None):
             if prior and prior.get('sourceFingerprint') == tender['sourceFingerprint']:
                 if check.get('linkStatus') != 'Verified notice reference':
                     cached_at = prior.get('verifiedAt') or (previous or {}).get('refreshedAt')
-                    check = {**check, 'linkStatus': 'Previously verified notice; latest check unavailable', 'documents': prior.get('documents', []), 'verifiedAt': cached_at, 'cached': True}
+                    check = {**check, 'url': prior['url'], 'portalUrl': prior.get('portalUrl'), 'linkStatus': 'Previously verified notice; latest check unavailable', 'documents': prior.get('documents', []), 'verifiedAt': cached_at, 'cached': True}
                     cached = [{**e, 'cached': True, 'verifiedAt': cached_at} for e in prior_pdf_evidence.get(tender['url'], [])]
                 else:
                     failed_urls = {d['url'] for d in check.get('documents', []) if not d['status'].startswith('Text extracted')}
