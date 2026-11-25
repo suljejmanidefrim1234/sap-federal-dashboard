@@ -101,5 +101,5 @@ export function prepareSnapshot(snapshot){
   if(snapshot.status==='ready'&&(!validDate(snapshot.asOf)||!snapshot.refreshedAt))throw new Error('Snapshot coverage and refresh date are required.');
   if(snapshot.departments.some(d=>!d||typeof d.code!=='string'||!d.code||typeof d.name!=='string'))throw new Error('Snapshot department directory is invalid.');
   const asOf=snapshot.asOf&&snapshot.asOf<today()?snapshot.asOf:today();
-  return {snapshot,contracts:groupContracts(snapshot.records.filter(r=>r&&r.owner_org&&inScope(r)&&r.contract_date<=asOf).map(enrichContract).filter(c=>c.supplierGroup)),directory:snapshot.departments};
+  return {snapshot,contracts:groupContracts(snapshot.records.filter(r=>r&&r.owner_org&&inScope(r)&&validDate(r.contract_date)<=asOf).map(enrichContract).filter(c=>c.supplierGroup)),directory:snapshot.departments};
 }
