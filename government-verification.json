@@ -1,14 +1,21 @@
 {
-  "verifiedAt": "2026-11-25T04:07:16.568913+00:00",
-  "apiVerified": false,
+  "verifiedAt": "2026-11-25T04:13:13.632206+00:00",
+  "apiVerified": true,
   "apiMethod": "datastore_search",
   "sourceLinkVerified": true,
-  "browserCORS": "Unknown",
-  "browserJSONP": false,
-  "errors": [
-    "Live API: The read operation timed out"
-  ],
+  "browserCORS": "Not provided",
+  "browserJSONP": true,
+  "errors": [],
   "department": "hc-sc",
+  "retrievedRawDepartmentRecords": 500,
+  "eligibleInRetrievedSample": 496,
+  "totalDepartmentRecordsAllDatesAndValues": 14835,
+  "returnedReference": "C-2026-2027-Q2-00287",
+  "scope": {
+    "start": "2021-01-01",
+    "end": "2026-11-24"
+  },
+  "sqlActionSupported": false,
   "sourceHTTPStatus": 200,
   "sourceURL": "https://search.open.canada.ca/contracts/record/hc-sc,C-2020-2021-Q4-00578"
 }
