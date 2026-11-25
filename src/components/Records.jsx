@@ -18,7 +18,7 @@ export function Disclosure({contract:c}) {return <article className="disclosure"
   </article>;}
 export function ContractCard({contract:c}) {
   const [page,setPage]=useState(0); const disclosures=c.disclosures||[c];
-  return <div className="contract-card" data-testid="contract-card"><div className="group-meta">{disclosures.length} disclosure{disclosures.length===1?'':'s'} · {c.groupingMethod||'Individual disclosure'}</div>
+  return <div className="contract-card" data-testid="contract-card"><div className="group-meta">{disclosures.length} disclosure{disclosures.length===1?'':'s'} · {c.groupingMethod||'Individual disclosure'} {c.ambiguousLatest&&<Badge>Same-date disclosures · verify order</Badge>}</div>
     {disclosures.slice(page*3,page*3+3).map(d=><Disclosure key={d.id} contract={d}/>)}
     {disclosures.length>1&&<><p className="small muted">Group total: {formatCurrency(c.contractValue,true)} from the most recent in-scope disclosure. Repeated total values are not added.</p><Pagination page={page} setPage={setPage} count={disclosures.length} size={3}/></>}
   </div>;

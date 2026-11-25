@@ -1,7 +1,7 @@
 import { classifyVendor, identifySolutionAreas, normalizeText } from './suppliers.js';
 export const RESOURCE_ID = 'fac950c0-00d5-4ec1-a4d3-9cbebf98a305';
 export const SOURCE_URL = 'https://open.canada.ca/data/en/dataset/d8f85d91-7dec-4fd1-8055-483b77225d8b/resource/' + RESOURCE_ID;
-export const API_URL = 'https://open.canada.ca/data/api/3/action/datastore_search_sql';
+export const API_URL = 'https://open.canada.ca/data/api/3/action/datastore_search';
 export function today() { return new Intl.DateTimeFormat('en-CA', { timeZone:'America/Toronto', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date()); }
 export function scope(asOf=today()) { return { start:(Number(asOf.slice(0,4))-5)+'-01-01', end:asOf }; }
 export function validDate(value) {
@@ -78,22 +78,44 @@ export function formatDate(date){return date?new Intl.DateTimeFormat('en-CA',{ye
 export function daysFromNow(date,asOf=today()){return date?Math.round((Date.parse(date)-Date.parse(asOf))/86400000):null;}
 export function getUpcomingEndDates(contracts,days=365){return contracts.filter(c=>c.supplierGroup&&c.endDate&&daysFromNow(c.endDate)>=0&&daysFromNow(c.endDate)<=days).sort((a,b)=>a.endDate.localeCompare(b.endDate));}
 export function getPastEndDates(contracts,days=365){return contracts.filter(c=>c.supplierGroup&&c.endDate&&daysFromNow(c.endDate)<0&&daysFromNow(c.endDate)>=-days).sort((a,b)=>b.endDate.localeCompare(a.endDate));}
-export async function governmentSQL(sql,fetcher=fetch){
-  const response=await fetcher(API_URL+'?'+new URLSearchParams({sql}),{signal:AbortSignal.timeout(25000)});
-  if(!response.ok)throw new Error('Government API HTTP '+response.status+'.');
-  const text=await response.text();if(!text.trim().startsWith('{'))throw new Error('Government endpoint returned a non-JSON rejection page. No records were retrieved.');
-  const data=JSON.parse(text);if(!data.success||!Array.isArray(data.result?.records))throw new Error('Government API did not return a valid contract result.');return data.result.records;
+// The government exposes datastore_search, but not datastore_search_sql.
+function jsonp(params) {
+  return new Promise((resolve,reject)=>{
+    const callback='__federalLookup_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    const script=document.createElement('script');
+    let timer;
+    function cleanup(){clearTimeout(timer);delete window[callback];script.remove();}
+    window[callback]=data=>{cleanup();resolve(data);};
+    script.onerror=()=>{cleanup();reject(new Error('Government lookup could not be loaded by this browser. No records were retrieved.'));};
+    timer=setTimeout(()=>{cleanup();reject(new Error('Government lookup timed out. Browser cross-origin access may be unavailable. No records were retrieved.'));},25000);
+    const query=new URLSearchParams(params);query.set('callback',callback);
+    script.src=API_URL+'?'+query;script.referrerPolicy='no-referrer';document.head.appendChild(script);
+  });
 }
-export async function fetchContracts({department,limit=100,offset=0},fetcher=fetch){
+export async function fetchContracts({department,limit=100,scanLimit=500},fetcher=fetch){
   if(!department)throw new Error('Select a department before retrieving records.');
-  const dates=scope(),org=String(department).replace(/'/g,"''");
-  const where='"owner_org" = \''+org+'\' AND "contract_date" >= \''+dates.start+'\' AND "contract_date" <= \''+dates.end+'\' AND "contract_value" > 10000';
   const safeLimit=Number.isFinite(limit)?Math.max(1,Math.min(100,Math.trunc(limit))):100;
-  const safeOffset=Number.isFinite(offset)?Math.max(0,Math.trunc(offset)):0;
-  const [records,count]=await Promise.all([governmentSQL('SELECT * FROM "'+RESOURCE_ID+'" WHERE '+where+' ORDER BY "contract_date" DESC, "_id" DESC LIMIT '+safeLimit+' OFFSET '+safeOffset,fetcher),governmentSQL('SELECT COUNT(*) AS matching_count FROM "'+RESOURCE_ID+'" WHERE '+where,fetcher)]);
-  if(records.some(r=>r.owner_org!==department||!inScope(r)))throw new Error('The API result did not match the selected department and scope; results were rejected.');
-  const total=Number(count[0]?.matching_count);if(!Number.isInteger(total)||total<records.length)throw new Error('The government result count could not be verified.');
-  return {records:records.map(enrichContract),total,complete:offset===0&&records.length===total,refreshedAt:new Date().toISOString()};
+  const scan=Number.isFinite(scanLimit)?Math.max(1,Math.min(500,Math.trunc(scanLimit))):500;
+  const params=new URLSearchParams({resource_id:RESOURCE_ID,filters:JSON.stringify({owner_org:department}),sort:'contract_date desc, _id desc',limit:String(scan),offset:'0',include_total:'true'});
+  let data;
+  try {
+    const response=await fetcher(API_URL+'?'+params,{signal:AbortSignal.timeout(25000)});
+    if(!response.ok)throw new Error('Government API HTTP '+response.status+'.');
+    const text=await response.text();
+    if(!text.trim().startsWith('{'))throw new Error('Government endpoint returned a non-JSON rejection page. No records were retrieved.');
+    data=JSON.parse(text);
+  } catch(error) {
+    // CKAN public GET APIs support JSONP on deployments without CORS headers.
+    if(error instanceof TypeError && typeof document!=='undefined')data=await jsonp(params);
+    else throw error;
+  }
+  if(!data.success||!Array.isArray(data.result?.records))throw new Error('Government API did not return a valid contract result.');
+  const raw=data.result.records;
+  if(raw.some(r=>r.owner_org!==department))throw new Error('The API result did not match the selected department; results were rejected.');
+  const total=Number(data.result.total);
+  if(!Number.isInteger(total)||total<raw.length)throw new Error('The government department result count could not be verified.');
+  const eligible=raw.filter(r=>inScope(r));
+  return {records:eligible.slice(0,safeLimit).map(enrichContract),total,scanned:raw.length,eligibleInSample:eligible.length,complete:raw.length===total&&eligible.length<=safeLimit,refreshedAt:new Date().toISOString()};
 }
 export function prepareSnapshot(snapshot){
   if(snapshot?.resourceId!==RESOURCE_ID||!Array.isArray(snapshot.records)||!Array.isArray(snapshot.departments))throw new Error('This is not a snapshot of the specified government resource.');
