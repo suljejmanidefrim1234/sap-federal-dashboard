@@ -81,7 +81,7 @@ All derived areas remain **Needs verification**. Evidence distinguishes award/hi
 
 CSV files are scanned in full. Each run inspects at most 150 relevant notice pages, two public PDF attachments per inspected notice, and the first 40 pages per PDF; no OCR is performed. Missing, scanned, oversized, login-protected or external-platform attachments may need manual review. Notice availability checks are shown next to links. Legacy PW-__ URL aliases are converted to the working CanadaBuys form.
 
-The separate RFP enrichment refresh date and any failure appear on the dashboard. Earlier enrichment survives a failed refresh, but links are only attached when the disclosed vendor/ID/date/value fingerprint still agrees. This prevents stale matching evidence from being applied to a corrected disclosure.
+The separate RFP enrichment refresh date and any failure appear on the dashboard. When notice access is denied, previously verified PDF quotations are retained only if reference, solicitation, title, dates and description fingerprints are unchanged. Retained quotations are explicitly labelled cached with their earlier verification date; changed notice metadata invalidates them. Earlier enrichment survives a failed refresh, but links are only attached when the disclosed vendor/ID/date/value fingerprint still agrees. This prevents stale matching evidence from being applied to a corrected disclosure.
 
 ```sh
 python3 -m pip install -r requirements.txt

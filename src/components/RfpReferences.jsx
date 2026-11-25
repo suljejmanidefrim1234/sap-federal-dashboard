@@ -18,7 +18,7 @@ export default function RfpReferences({matches=[]}) {
       </div>):<p className="small muted">No corresponding public tender found in the scanned archives. The procurement may be non-competitive or its documents may be unavailable.</p>}</div>
       <p className="small muted">Purchase context from public text: {match.link.purchaseTypes.join(', ')}. Product mentions do not confirm installed usage or the selected licence line items.</p>
       {match.link.evidence.length>0&&<details className="rfp-quotes"><summary>Product and solution evidence · {match.link.evidence.length} cited excerpts</summary>{match.link.evidence.map((e,index)=><div className="rfp-evidence" key={index}>
-        <strong>{e.product||'Solution-area keyword: '+e.keyword}</strong><span className="badge badge-neutral">{e.basis} · Needs verification</span><blockquote>{e.quote}</blockquote><a href={e.url} target="_blank" rel="noopener noreferrer">{e.kind}{e.page?' · page '+e.page:''} ↗</a>
+        <strong>{e.product||'Solution-area keyword: '+e.keyword}</strong><span className="badge badge-neutral">{e.basis} · Needs verification</span>{e.cached&&<p className="small rfp-warning">Cached from an earlier verified document check{e.verifiedAt?' on '+new Date(e.verifiedAt).toLocaleDateString('en-CA',{timeZone:'America/Toronto'}):''}; verify the current document.</p>}<blockquote>{e.quote}</blockquote><a href={e.url} target="_blank" rel="noopener noreferrer">{e.kind}{e.page?' · page '+e.page:''} ↗</a>
       </div>)}</details>}
     </section>)}
   </div></details>;

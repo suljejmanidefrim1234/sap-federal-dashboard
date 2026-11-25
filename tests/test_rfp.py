@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import rfp
@@ -72,6 +73,37 @@ class RfpTests(unittest.TestCase):
         linked = output['links'][edge['linkId']]
         self.assertEqual(linked['tenders'][0]['number'], 'RFP-2024-123456')
         self.assertTrue(any(e['area'] == 'HCM' and e['product'] == 'SAP SuccessFactors' for e in linked['evidence']))
+
+    def test_verified_pdf_evidence_survives_denied_checks_only_if_metadata_is_unchanged(self):
+        row = self.disclosure(procurement_id='RFP-2024-123456')
+        snapshot = {'records':[row],'asOf':'2026-11-24','refreshedAt':'2026-11-24T12:00:00Z'}
+        columns = ['referenceNumber-numeroReference','solicitationNumber-numeroSollicitation','publicationDate-datePublication','title-titre-eng','contractingEntityName-nomEntitContractante-eng','tenderDescription-descriptionAppelOffres-eng','noticeURL-URLavis-eng']
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            def write(description):
+                for source in rfp.SOURCES:
+                    with (directory / (source[0] + '.csv')).open('w', newline='') as file:
+                        writer = csv.DictWriter(file, fieldnames=columns)
+                        writer.writeheader()
+                        if source[0] == 'tenders-current':
+                            writer.writerow({'referenceNumber-numeroReference':'cb-test','solicitationNumber-numeroSollicitation':'RFP-2024-123456','publicationDate-datePublication':'2024-12-01','title-titre-eng':'Payroll implementation','contractingEntityName-nomEntitContractante-eng':'Health Canada','tenderDescription-descriptionAppelOffres-eng':description,'noticeURL-URLavis-eng':'https://canadabuys.canada.ca/en/tender-opportunities/tender-notice/cb-test'})
+            write('See statement of work.')
+            previous = rfp.build(snapshot, directory)
+            link = next(iter(previous['links'].values()))
+            link['tenders'][0].update({'linkStatus':'Verified notice reference','verifiedAt':'2026-11-23T12:00:00Z','documents':[{'url':'https://canadabuys.canada.ca/sow.pdf','name':'SOW','status':'Text extracted'}]})
+            link['evidence'].append({'area':'HCM','product':'SAP SuccessFactors','productGroup':'SAP','kind':'RFP attachment','basis':'Requested / specified in RFP','quote':'Implement SAP SuccessFactors payroll.','url':'https://canadabuys.canada.ca/sow.pdf#page=7','page':7,'purchaseTypes':['Professional services'],'confidence':'Needs verification'})
+            failure = {'linkStatus':'Availability needs verification: HTTP 403','documents':[],'extraEvidence':[]}
+            with patch('rfp.inspect_tender', return_value=failure):
+                refreshed = rfp.build(snapshot, directory, documents=True, previous=previous)
+            current = next(iter(refreshed['links'].values()))
+            cached = [e for e in current['evidence'] if e.get('cached')]
+            self.assertEqual(cached[0]['product'], 'SAP SuccessFactors')
+            self.assertEqual(cached[0]['verifiedAt'], '2026-11-23T12:00:00Z')
+            self.assertTrue(current['tenders'][0]['cached'])
+            write('Changed requirements; see the new statement of work.')
+            with patch('rfp.inspect_tender', return_value=failure):
+                changed = rfp.build(snapshot, directory, documents=True, previous=previous)
+            self.assertFalse(any(e.get('cached') for l in changed['links'].values() for e in l['evidence']))
 
 if __name__ == '__main__':
     unittest.main()

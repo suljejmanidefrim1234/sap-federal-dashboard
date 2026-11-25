@@ -25,6 +25,7 @@ export default function Dashboard(){
   {available&&snapshot.lastRefreshError&&<div className="data-status"><strong>Latest refresh attempt failed; showing the earlier snapshot.</strong><p>{snapshot.lastRefreshError}</p></div>}
   {available&&<div className="snapshot-strip rfp-status">Tender/RFP enrichment: {rfp.status==='ready'?contracts.filter(c=>c.rfpMatches?.length).length+' contract groups with research links':'Unavailable'} · {rfp.refreshedAt?'Refreshed '+new Date(rfp.refreshedAt).toLocaleString('en-CA',{timeZone:'America/Toronto'})+' Eastern':'No successful refresh'} · Product purchases need verification.</div>}
   {rfp.lastRefreshError&&<div className="data-status"><strong>RFP enrichment refresh failed; earlier matching records may remain available.</strong><p>{rfp.lastRefreshError}</p></div>}
+  {rfp.warning&&<div className="data-status"><p>{rfp.warning}</p></div>}
   {importError&&<div className="error-panel" role="alert">{importError}</div>}
   {view==='accounts'&&(selected?<Profile key={selected.code} account={selected} contracts={contracts.filter(c=>c.owner_org===selected.code)} onBack={()=>setSelected(null)} available={available}/>:<Accounts departments={departments} onSelectAccount={select} available={available} directoryComplete={snapshot.directoryComplete}/>)}
   {view==='renewals'&&<Signals contracts={contracts} departments={departments} available={available}/>} {view==='market'&&<Market contracts={contracts} available={available} onSelectAccount={select}/>}

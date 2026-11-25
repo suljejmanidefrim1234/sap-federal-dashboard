@@ -238,7 +238,11 @@ def inspect_tender(tender):
     except Exception as error:
         return {'linkStatus': 'Availability needs verification: ' + str(error)[:140], 'documents': [], 'extraEvidence': []}
 
-def build(snapshot, directory, documents=False, page_limit=150):
+def tender_fingerprint(tender):
+    fields = ['reference','number','title','noticeType','publishedDate','closingDate','amendmentDate','description']
+    return hashlib.sha256(json.dumps({k: tender.get(k, '') for k in fields}, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+def build(snapshot, directory, documents=False, page_limit=150, previous=None):
     disclosures = snapshot['records']
     by_contract, by_vehicle, by_day = {}, {}, {}
     for i, d in enumerate(disclosures):
@@ -334,8 +338,10 @@ def build(snapshot, directory, documents=False, page_limit=150):
             tender = {'reference': reference, 'number': number, 'title': field(row, 'title-titre'), 'url': url,
                       'noticeType': field(row, 'noticeType-avisType'), 'publishedDate': row.get('publicationDate-datePublication', '')[:10],
                       'closingDate': row.get('tenderClosingDate-appelOffresDateCloture', '')[:10],
+                      'amendmentDate': row.get('amendmentDate-dateModification', '')[:10],
                       'linkStatus': 'URL from government notice data; availability not checked', 'documents': [],
                       'description': field(row, 'tenderDescription-descriptionAppelOffres')}
+            tender['sourceFingerprint'] = tender_fingerprint(tender)
             for key in target:
                 old = tender_maps[key].get(url)
                 if not old or tender['publishedDate'] > old['publishedDate']:
@@ -350,6 +356,14 @@ def build(snapshot, directory, documents=False, page_limit=150):
             unique_tenders[tender['url']] = tender
         link['tenders'] = [dict(t) for t in selected]
     inspected = {}
+    prior_tenders, prior_pdf_evidence = {}, {}
+    for link in (previous or {}).get('links', {}).values():
+        for tender in link.get('tenders', []):
+            prior_tenders[tender['url']] = tender
+            urls = {d['url'] for d in tender.get('documents', [])}
+            for evidence in link.get('evidence', []):
+                if evidence['kind'] == 'RFP attachment' and evidence['url'].split('#')[0] in urls:
+                    prior_pdf_evidence.setdefault(tender['url'], []).append(evidence)
     if documents and unique_tenders:
         selected = sorted(unique_tenders.values(), key=lambda t: (bool(extract_evidence(t['title'] + ' ' + t['description'], 'RFP title', t['url'])), t['publishedDate']), reverse=True)[:page_limit]
         with ThreadPoolExecutor(max_workers=4) as pool:
@@ -359,8 +373,20 @@ def build(snapshot, directory, documents=False, page_limit=150):
     for link in links.values():
         for tender in link['tenders']:
             check = inspected.get(tender['url'], {})
+            prior = prior_tenders.get(tender['url'])
+            cached = []
+            if prior and prior.get('sourceFingerprint') == tender['sourceFingerprint']:
+                if check.get('linkStatus') != 'Verified notice reference':
+                    cached_at = prior.get('verifiedAt') or (previous or {}).get('refreshedAt')
+                    check = {**check, 'linkStatus': 'Previously verified notice; latest check unavailable', 'documents': prior.get('documents', []), 'verifiedAt': cached_at, 'cached': True}
+                    cached = [{**e, 'cached': True, 'verifiedAt': cached_at} for e in prior_pdf_evidence.get(tender['url'], [])]
+                else:
+                    failed_urls = {d['url'] for d in check.get('documents', []) if not d['status'].startswith('Text extracted')}
+                    cached = [{**e, 'cached': True, 'verifiedAt': prior.get('verifiedAt') or (previous or {}).get('refreshedAt')} for e in prior_pdf_evidence.get(tender['url'], []) if e['url'].split('#')[0] in failed_urls]
+            if check.get('linkStatus') == 'Verified notice reference':
+                check['verifiedAt'] = datetime.now(timezone.utc).isoformat()
             tender.update({k: v for k, v in check.items() if k != 'extraEvidence'})
-            tender_evidence = extract_evidence(tender['title'], 'RFP title', tender['url']) + extract_evidence(tender.pop('description'), 'RFP description', tender['url']) + check.get('extraEvidence', [])
+            tender_evidence = extract_evidence(tender['title'], 'RFP title', tender['url']) + extract_evidence(tender.pop('description'), 'RFP description', tender['url']) + check.get('extraEvidence', []) + cached
             if re.search(r'Supply Arrangement|Standing Offer', tender['noticeType'], re.I):
                 tender_evidence = [{**e, 'vehicleScope': True, 'basis': 'Vehicle scope; individual purchase not identified'} for e in tender_evidence]
             link['evidence'].extend(tender_evidence)
@@ -373,12 +399,16 @@ def build(snapshot, directory, documents=False, page_limit=150):
     by_id = {d['owner_org'] + ':' + d['reference_number']: d for d in disclosures}
     fingerprints = {rid: {k: by_id[rid].get(k, '') for k in FINGERPRINT_FIELDS} for rid in edges}
     linked = sum(bool(links[e['linkId']]['tenders']) for values in edges.values() for e in values)
+    final_tenders = {t['url']: t for link in links.values() for t in link['tenders']}
+    cached_notices = sum(bool(t.get('cached')) for t in final_tenders.values())
     return {'status': 'ready', 'refreshedAt': datetime.now(timezone.utc).isoformat(), 'snapshotRefreshedAt': snapshot['refreshedAt'],
             'sources': stats, 'links': links, 'disclosures': edges, 'inputFields': fingerprints,
             'summary': {'matchedDisclosures': len(edges), 'awardHistoryMatches': sum(l['sourceKind'] in {'Award', 'Contract history'} for l in links.values()), 'directDisclosureTenderLinks': sum(l['sourceKind'] == 'Contract disclosure' for l in links.values()), 'matchesWithTenderLinks': linked,
                         'uniqueTenderLinks': len(unique_tenders), 'noticePagesInspected': len(inspected),
-                        'verifiedNoticeLinks': sum(v.get('linkStatus') == 'Verified notice reference' for v in inspected.values()),
+                        'verifiedNoticeLinks': sum(t.get('linkStatus') in {'Verified notice reference','Previously verified notice; latest check unavailable'} for t in final_tenders.values()),
+                        'cachedNoticeLinks': cached_notices,
                         'publicPDFsExtracted': sum(d['status'].startswith('Text extracted') for v in inspected.values() for d in v['documents'])},
+            'warning': 'Some notice checks were unavailable. Earlier verified PDF evidence is retained only when notice metadata is unchanged, and is labelled as cached.' if cached_notices else None,
             'limitations': 'Exact identifiers plus supplier and department are preferred. Shared vehicles never populate solution areas. Date/value-only candidates contribute only explicit product names from award/history titles as tentative signals. RFP requirements, alternatives, skills and existing-environment references are not proof of a product purchase. CSV archives are scanned in full; notice/PDF inspection is bounded and no OCR is performed.'}
 
 def main():
@@ -402,7 +432,8 @@ def main():
                         task.result()
             if not args.source_dir and not args.download:
                 raise ValueError('Specify --download or --source-dir.')
-            result = build(snapshot, directory, args.documents, max(0, args.page_limit))
+            previous = json.loads(args.output.read_text()) if args.output.exists() else None
+            result = build(snapshot, directory, args.documents, max(0, args.page_limit), previous)
             if any(source['rowsScanned'] == 0 for source in result['sources']):
                 raise ValueError('A CanadaBuys archive was empty; refusing to replace the earlier enrichment.')
         args.output.write_text(json.dumps(result, ensure_ascii=False, separators=(',', ':')))
